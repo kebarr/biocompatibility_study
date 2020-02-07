@@ -4,8 +4,9 @@ from PIL import Image
 from skimage import exposure
 from skimage.filters import rank_order
 from scipy.ndimage.morphology import binary_dilation
-from skimage import morphology
 from skimage import measure
+import os
+
 
 
 
@@ -26,23 +27,47 @@ def segment_neun(data):
 
 def create_centroid_bitmap(x_dim, y_dim, props):
      bitmap = np.zeros((x_dim, y_dim))
-     number_added = 0
      for p in props:
          centroid = p.centroid
          x_coord = int(centroid[0])
          y_coord = int(centroid[1])
          bitmap[x_coord, y_coord] = 1
-         number_added += 1
-     print("added %d points to bitmap" % number_added)
      return bitmap
 
 
-def run_analysis(filename):
+# helper class to store results
+class CountResults(object):
+    def __init__(self):
+        self.sums = []
+        self.region_counts = []
+        self.areas = []
+
+
+def count_cells(image_arr, injection_site, pixels_per_iteration, iterations_needed=200):
+    injection_site_coords = injection_site.coords
+    mask = np.zeros_like(image_arr)
+    for x, y in injection_site_coords:
+        mask[x,y] = 1
+    intensity = np.sum(image_arr)
+    res = CountResults()
+    area = np.sum(mask)
+    for i in range(iterations_needed):
+        masked = mask*image_arr
+        # intensity in region is total intensity including region - total instensity excluding region
+        res.region_counts.append(intensity-np.sum(masked))
+        intensity = np.sum(masked)
+        res.sums.append(intensity)
+        mask = binary_dilation(mask, iterations=pixels_per_iteration)
+        res.areas.append(np.sum(mask)-area)
+        area = np.sum(mask)
+    return res
+
+
+def run_analysis(filename, injection_site):
     # open image as greyscale
     im = Image.open(filename).convert('L')
     data = np.array(im, dtype=float)
     # localise injection site
-    i = get_injection_site_props(data, 115)
     segmented = segment_neun(data)
     # label and calculate properties of cells
     props = measure.regionprops(measure.label(segmented))
@@ -51,7 +76,7 @@ def run_analysis(filename):
     # find centroids of cells
     bm = create_centroid_bitmap(x_dim, y_dim, props)
     # count cells in regions 
-    final = compare_intensities(bm, i, 5, iterations_needed=100)
+    final = count_cells(bm, injection_site, 1, iterations_needed=100)
     return final
 
 
