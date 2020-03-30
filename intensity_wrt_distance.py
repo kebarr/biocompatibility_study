@@ -1,14 +1,5 @@
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy import ndimage
-from PIL import Image
-from skimage import exposure
-from skimage.filters import rank_order
-import sklearn.preprocessing as preprocessing
 from scipy.ndimage.morphology import binary_dilation
-from skimage import morphology
 
 class IntensityResults(object):
     def __init__(self):
@@ -29,7 +20,6 @@ def compare_intensities(image_arr, injection_site, iterations_needed):
     for x, y in injection_site_coords:
         mask[x,y] = 1
     initial_area = np.sum(mask)
-    print(initial_area)
     # problem is that first intensity is entire image- initial mask, need 
     masked = np.ma.masked_array(image_arr,mask=~np.array(mask, dtype=bool))
     intensity_of_first_mask = np.sum(masked.compressed())
@@ -51,22 +41,13 @@ def compare_intensities(image_arr, injection_site, iterations_needed):
         res.areas_with_previous_subtracted.append(area)
         if i%20 == 0: 
             print("finished iteration %d" % (i))
-    print(res.areas_with_previous_subtracted)
-    print(res.region_intensities)
-    plt.imshow(mask)
-    plt.show()
     return res
 
 
 def run_analysis(img, base_filename, injection_site):
     intensities = compare_intensities(img*255, injection_site,300)
     final = intensities.average_intensity_per_region()
-    print(final)
     res_filename = base_filename.split(".tif")[0] + "_results.txt"
-    img_filename = base_filename.split(".tif")[0] + "_image.png"
-    plt.imshow(img, cmap="gray")
-    plt.savefig(img_filename)
-    plt.close()
     with open(res_filename, 'w') as f:
         for i in final:
             f.write(str(i) +", ")
